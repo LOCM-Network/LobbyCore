@@ -1,0 +1,12 @@
+---
+servers:
+  mc.locm.network:19133:
+    name: "skyblock"
+    content: ""
+  sur.locm.network:19132:
+    name: "survival"
+    content: ""
+button:
+  next: ""
+  previous: ""
+...
