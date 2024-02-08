@@ -5,12 +5,9 @@ declare(strict_types=1);
 namespace locm\lobby\module;
 
 
-use cosmicpe\floatingtext\world\WorldManager;
+use cosmicpe\floatingtext\Loader;
 use czechpmdevs\multiworld\util\WorldUtils;
 use locm\lobby\LobbyCore;
-use pocketmine\console\ConsoleCommandSender;
-use pocketmine\Server;
-use pocketmine\utils\TextFormat;
 use pocketmine\world\Position;
 
 class Button {
@@ -95,7 +92,7 @@ class Button {
 
     public function appendPage(array $content) :void {
         $world = WorldUtils::getLoadedWorldByName("lobbytong");
-        $wm = WorldManager::get($world);
+        $wm = Loader::getInstance()->getWorldManager()->get($world);
         $text = $wm->getText(3);
         if($text == null) return;
         $content = implode("\n", $content);

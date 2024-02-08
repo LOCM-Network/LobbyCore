@@ -4,26 +4,21 @@ declare(strict_types=1);
 
 namespace locm\lobby\util;
 
+use faz\common\Debug;
+use Generator;
 use locm\lobby\LobbyCore;
 use mmm545\libgamespyquery\GameSpyQuery;
 use mmm545\libgamespyquery\GameSpyQueryException;
-use paroxity\portal\packet\TransferResponsePacket;
-use paroxity\portal\packet\types\ServerListEntry;
-use paroxity\portal\Portal;
-use pocketmine\console\ConsoleCommandSender;
 use pocketmine\item\VanillaItems;
 use pocketmine\player\Player;
-use pocketmine\scheduler\Task;
-use pocketmine\Server;
-use pocketmine\utils\TextFormat;
-use Ramsey\Uuid\UuidInterface;
+use SOFe\AwaitGenerator\Await;
 
 class Utils {
 
     /**
      * @throws GameSpyQueryException
      */
-    public static function query(string $address, int $port) :GameSpyQuery{
+    public static function query(string $address, int $port) : array {
         return GameSpyQuery::query($address, $port);
     }
 
@@ -32,81 +27,41 @@ class Utils {
         return $servers[$address]["content"] ?? "";
     }
 
-    public static function parseNameFromAddress(string $address) :?string{
+    public static function parseNameFromAddress(string $address, int $port) :?string{
         $servers = LobbyCore::getInstance()->getConfig()->get("servers");
-        return $servers[$address]["name"] ?? "";
+        foreach ($servers as $data) {
+            if($data["address"] == $address && $data["port"] == $port) {
+                return $data["name"];
+            }
+        }
+        return null;
     }
 
-    public static function teleport(Player $player, string $address) :void{
-        LobbyCore::getInstance()->getScheduler()->scheduleRepeatingTask(new class($player, $address) extends Task {
-            private int $cooldown = 5;
-
-            public function __construct(
-                private Player $player,
-                private string $address
-            ){}
-
-            public function onRun(): void {
-                if($this->cooldown > 0) {
-                    $this->cooldown--;
-                    $this->player->sendTitle("§eＬＯＣＭ ＴＲＡＮＳＦＥＲ", "§fBạn sẽ được dịch chuyển trong§e " . $this->cooldown . "§f giây", 0, 20, 0);
-                    return;
-                }
-                if($this->player->isClosed()) return;
-                $player = $this->player;
-                $address = $this->address;
-                $portal = Portal::getInstance();
-                $portal->requestServerList(function(array $servers) use ($portal, $player, $address) :void {
-                    $serverNames = array_map(function(ServerListEntry $server) {
-                        return $server->getName();
-                    }, $servers);
-                    $targetServerName = Utils::parseNameFromAddress($address);
-                    if(!in_array($targetServerName, $serverNames)) {
-                        $serverExplode = explode(":", $address);
-                        $player->transfer($serverExplode[0], (int) $serverExplode[1]);
-                        return;
-                    }
-                    Utils::transfer($player, $player->getUniqueId(), $targetServerName);
-                });
-                $this->getHandler()->cancel();
-            }
-        }, 20);
-    }
-
-
-    public static function transfer(Player $sender, UuidInterface $uuid, string $server): void {
-        $portal = Portal::getInstance();
-        $portal->transferPlayerByUUID($uuid, $server, function(?Player $player, int $status, string $error) use ($portal, $sender, $server): void {
-            if($player === null || !$player->isOnline()){
-                return;
-            }
-            switch($status) {
-                case TransferResponsePacket::RESPONSE_SUCCESS:
-                    if($sender !== $player && !$sender instanceof ConsoleCommandSender) {
-                        $sender->sendMessage(TextFormat::GREEN . "Player: " . $player->getName() . " was transferred to " . $server . " successfully");
-                    }
-                    $player->sendMessage(TextFormat::GREEN . "Bạn đã được dịch chuyển đến§e " . $server);
-                    $portal->getLogger()->info("Player: " . $player->getName() . " was transferred to " . $server . " by " . $sender->getName());
-                    break;
-
-                case TransferResponsePacket::RESPONSE_SERVER_NOT_FOUND:
-                    $sender->sendMessage(TextFormat::RED . "Server: " . $server . " not found");
-                    break;
-
-                case TransferResponsePacket::RESPONSE_ALREADY_ON_SERVER:
-                    $sender->sendMessage(TextFormat::RED . "Có một truy cập khác đã được thực hiện");
-                    break;
-
-                case TransferResponsePacket::RESPONSE_PLAYER_NOT_FOUND:
-                    $sender->sendMessage(TextFormat::RED . "Player could not be found");
-                    break;
-
-                case TransferResponsePacket::RESPONSE_ERROR:
-                    $sender->sendMessage(TextFormat::RED . "§cĐã xãy ra lỗi khi dịch chuyển: " . $error);
-                    break;
-            }
-        });
-    }
+//    public static function teleport(Player $player, string $address) :void{
+//        LobbyCore::getInstance()->getScheduler()->scheduleRepeatingTask(new class($player, $address) extends Task {
+//            private int $cooldown = 5;
+//
+//            public function __construct(
+//                private Player $player,
+//                private string $address
+//            ){}
+//
+//            public function onRun(): void {
+//                if($this->cooldown > 0) {
+//                    $this->cooldown--;
+//                    $this->player->sendTitle("§eＬＯＣＭ ＴＲＡＮＳＦＥＲ", "§fBạn sẽ được dịch chuyển trong§e " . $this->cooldown . "§f giây", 0, 20, 0);
+//                    return;
+//                }
+//                if($this->player->isClosed()) return;
+//                $player = $this->player;
+//                $address = $this->address;
+//                StarGateAtlantis::getInstance()->transferPlayer($player, $address);
+//                $serverExplode = explode(":", $address);
+//                $player->transfer($serverExplode[0], (int) $serverExplode[1]);
+//                $this->getHandler()->cancel();
+//            }
+//        }, 20);
+//    }
 
     public static function setJoinItem(Player $player) :void {
         $item = VanillaItems::COMPASS();
@@ -124,6 +79,27 @@ class Utils {
         return $result;
     }
 
+    /**
+     * @return array{online: int, max: int}|null
+     */
+    public static function getServerPlayers(string $address, int $port) :?Generator {
+        return yield from Await::promise(function($resolve) use($address, $port) {
+            try {
+                $query = self::query($address, $port);
+                Debug::spaceDump($query);
+            }catch (GameSpyQueryException) {
+                $resolve(null);
+                return;
+            }
+            $currentPlayers = (int) $query["Players"];
+            $maxPlayers = (int) $query["MaxPlayers"];
+            $resolve([
+                "online" => $currentPlayers,
+                "max" => $maxPlayers
+            ]);
+        });
+    }
+
     public static function getAllMemberInServers() :int {
         $servers = LobbyCore::getInstance()->getConfig()->get("servers");
         $result = 0;
@@ -135,7 +111,7 @@ class Utils {
                 continue;
             }
             $playerCount = 0;
-            $currentPlayers = $query->get("players");
+            $currentPlayers = $query["players"];
             if(isset($currentPlayers[0]) && $currentPlayers[0] != "") {
                 $playerCount = count($currentPlayers);
             }

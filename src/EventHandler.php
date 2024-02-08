@@ -6,10 +6,8 @@ namespace locm\lobby;
 
 use locm\lobby\entity\Npc;
 use locm\lobby\form\ServersForm;
-use locm\lobby\module\Button;
 use locm\lobby\util\Utils;
-use phuongaz\crate\entity\CrateEntity;
-use pocketmine\block\BlockLegacyIds;
+use pocketmine\block\BlockTypeIds;
 use pocketmine\event\block\BlockBreakEvent;
 use pocketmine\event\block\BlockPlaceEvent;
 use pocketmine\event\entity\EntityDamageEvent;
@@ -22,17 +20,13 @@ use pocketmine\event\player\PlayerMoveEvent;
 use pocketmine\event\player\PlayerQuitEvent;
 use pocketmine\event\player\PlayerTransferEvent;
 use pocketmine\event\server\QueryRegenerateEvent;
-use pocketmine\item\ItemIds;
+use pocketmine\item\ItemTypeIds;
 use pocketmine\math\Facing;
 use pocketmine\math\Vector2;
 use pocketmine\math\Vector3;
 use pocketmine\network\mcpe\protocol\MovePlayerPacket;
 use pocketmine\player\Player;
 use pocketmine\Server;
-use pocketmine\utils\TextFormat;
-use slapper\entities\SlapperEntity;
-use slapper\entities\SlapperHuman;
-use slapper\events\SlapperCreationEvent;
 
 class EventHandler implements Listener {
 
@@ -42,7 +36,7 @@ class EventHandler implements Listener {
         $player = $event->getPlayer();
         $world = $player->getWorld();
         $subtract = $player->getLocation()->floor()->subtract(0, 1, 0);
-        if($world->getBlock($subtract)->getId() == BlockLegacyIds::GOLD_BLOCK) {
+        if($world->getBlock($subtract)->getTypeId() == BlockTypeIds::GOLD) {
             switch ($player->getHorizontalFacing()) {
                 case Facing::NORTH:
                     $player->setMotion(new Vector3(0, $highboost, -($forwardboost)));
@@ -80,6 +74,17 @@ class EventHandler implements Listener {
             }
         }
     }
+
+    public function onInteractAir(PlayerInteractEvent $event) : void {
+        $player = $event->getPlayer();
+        $item = $event->getItem();
+        if($item->getTypeId() == ItemTypeIds::COMPASS) {
+            $player->sendForm(new ServersForm());
+            $event->cancel();
+        }
+    }
+
+
 
     public function onDamage(EntityDamageEvent $event){
         $event->cancel();
@@ -119,15 +124,16 @@ class EventHandler implements Listener {
         $player = $event->getPlayer();
         $address = $event->getAddress();
         $port = $event->getPort();
-        $name = Utils::parseNameFromAddress($address . ":" . $port);
+        $name = Utils::parseNameFromAddress($address, $port);
         Server::getInstance()->broadcastMessage("§l§e" . $player->getName() . "§f đang dịch chuyển sang §l§e" . $name);
     }
 
     public function onClick(PlayerInteractEvent $event) :void {
         $block = $event->getBlock();
-        if($block->getId() == BlockLegacyIds::STONE_BUTTON) {
+        if($block->getTypeId() == BlockTypeIds::STONE_BUTTON) {
             $button = LobbyCore::getInstance()->getButtonPage();
             $button->handleButton($block->getPosition());
+            Server::getInstance()->broadcastMessage($event->getBlock()->getPosition()->__toString());
         }
     }
 

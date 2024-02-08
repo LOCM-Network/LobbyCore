@@ -1,7 +1,12 @@
 name: LobbyCore
 version: 0.1
-api: 4.0.0
+api: 5.0.0
 src-namespace-prefix: locm\lobby
 main: locm\lobby\LobbyCore
 load: STARTUP
 authors: [locm-team]
+
+permissions:
+  locm.command.servers:
+    description: "Allows the player to use the /servers command"
+    default: true

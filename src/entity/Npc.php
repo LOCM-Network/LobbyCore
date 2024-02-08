@@ -5,26 +5,34 @@ declare(strict_types=1);
 namespace locm\lobby\entity;
 
 
-use locm\lobby\form\InfomationForm;
+use faz\common\form\FastForm;
+use locm\lobby\form\InformationForm;
+use locm\lobby\LobbyCore;
+use locm\lobby\server\Server;
+use locm\lobby\server\ServerList;
 use locm\lobby\util\Utils;
-use mmm545\libgamespyquery\GameSpyQuery;
-use mmm545\libgamespyquery\GameSpyQueryException;
 use pocketmine\entity\Human;
 use pocketmine\entity\Location;
 use pocketmine\entity\Skin;
 use pocketmine\event\entity\EntityDamageByEntityEvent;
 use pocketmine\event\entity\EntityDamageEvent;
-use pocketmine\item\ItemIds;
-use pocketmine\math\Vector2;
+use pocketmine\item\ItemTypeIds;
 use pocketmine\nbt\tag\CompoundTag;
 use pocketmine\player\Player;
-use pocketmine\Server;
+use pocketmine\utils\TextFormat;
 
 class Npc extends Human {
 
-    private string $address;
+    private string $serverName;
+    private ?Server $lServer;
 
-    private string $baseNameTag;
+    private array $communicates = [
+        "&l&fXin chào!!!!",
+        "&l&fBạn muốn tham gia máy chủ nào?",
+        "&l&fBạn ấn vào tôi để xem thông tin máy chủ nhé!!",
+        "&l&fTôi buồn quá, bạn chơi tôi đi :(",
+        "&l&fTôi là NPC đây, bạn cần gì không?",
+    ];
 
     public function __construct(Location $location, Skin $skin, ?CompoundTag $nbt = null) {
         parent::__construct($location, $skin, $nbt);
@@ -33,47 +41,62 @@ class Npc extends Human {
     public function initEntity(CompoundTag $nbt): void{
         parent::initEntity($nbt);
         $this->setNameTagAlwaysVisible();
-        $this->address = $nbt->getString("address");
-        $this->baseNameTag = $nbt->getString("name");
+        $this->serverName = $nbt->getString("serverName");
+        $this->lServer = ServerList::get($this->serverName);
     }
 
     public function saveNBT(): CompoundTag {
         $nbt = parent::saveNBT();
-        $nbt->setString("name", $this->baseNameTag);
-        $nbt->setString("address", $this->address);
+        $nbt->setString("serverName", $this->serverName);
         return $nbt;
     }
 
-    public function getAddress() :string {
-        return $this->address;
-    }
-
-    public function getBaseNameTag() :string {
-        return $this->baseNameTag;
+    public function getServerName() :string {
+        return $this->serverName;
     }
 
     public function entityBaseTick(int $tickDiff = 1): bool{
         if ($this->isClosed()) {
             return false;
         }
-
-        if(Server::getInstance()->getTick() % 200 == 0) {
+        $mainServer = LobbyCore::getInstance()->getServer();
+        if($mainServer->getTick() % 200 == 0) {
             $this->updateQuery();
         }
+
+        foreach($this->getWorld()->getEntities() as $entity) {
+            if($entity instanceof Player) {
+                if($entity->getPosition()->distance($this->getPosition()) <= 5) {
+                    $this->lookAt($entity->getPosition());
+                    if($mainServer->getTick() % 300 == 0) {
+                        $message = $this->communicates[array_rand($this->communicates)];
+                        $entity->sendPopup(TextFormat::colorize("&l&f[&e" . Utils::parseBigFont($this->getServerName())  . "&e]\n" . $message));
+                    }
+                }
+            }
+        }
+
         return parent::entityBaseTick($tickDiff);
     }
 
     public function attack(EntityDamageEvent $source): void {
         parent::attack($source);
         if($source instanceof EntityDamageByEntityEvent) {
-            $damger = $source->getDamager();
-            if($damger instanceof Player) {
-                $damger->sendForm(new InfomationForm($this->getAddress()));
-                if($damger->isSneaking() && Server::getInstance()->isOp($damger->getName())) {
-                    if($damger->getInventory()->getItemInHand()->getId() == ItemIds::STICK) {
-                        $this->flagForDespawn();
+            $damager = $source->getDamager();
+            if($damager instanceof Player) {
+                if($damager->isSneaking() && LobbyCore::getInstance()->getServer()->isOp($damager->getName())) {
+                    if($damager->getInventory()->getItemInHand()->getTypeId() == ItemTypeIds::STICK) {
+                        FastForm::question($damager, "Question", "§l§eBạn có muốn xóa NPC này không?",
+                            "Có", "Không",
+                            function(Player $player, bool $data) :void{
+                            if($data) {
+                                $this->flagForDespawn();
+                            }
+                        });
                         return;
                     }
+                } else {
+                    $damager->sendForm(new InformationForm($this->getServerName()));
                 }
             }
         }
@@ -81,18 +104,14 @@ class Npc extends Human {
     }
 
     public function updateQuery() :void {
-        $address = explode(":", $this->address);
-        try {
-            $query = GameSpyQuery::query($address[0], (int)$address[1]);
-        }catch (GameSpyQueryException $e){
-            $this->setNameTag(Utils::parseBigFont($this->getBaseNameTag()) . "\n§cServer is offline");
-            return;
+        $clientServer = $this->lServer;
+        if($clientServer === null && $clientServer->isOnline()) {
+            $playerCount = $clientServer->getOnlinePlayers();
+            $maxPlayers = $clientServer->getMaxPlayers();
+            $nameTag = Utils::parseBigFont($this->getServerName()) . "\n§l§7【§e " . $playerCount . " §7/ §e" . $maxPlayers . " §7】";
+        } else {
+            $nameTag = Utils::parseBigFont($this->getServerName()) . "\n§l§7【§c OFFLINE §7】";
         }
-        $playerCount = 0;
-        $currentPlayers = $query->get("players");
-        if(isset($currentPlayers[0]) && $currentPlayers[0] != "") {
-            $playerCount = count($currentPlayers);
-        }
-        $this->setNameTag(Utils::parseBigFont($this->getBaseNameTag()) . "\n§l§7【§e " . $playerCount . " §7/ §e" . $query->get("maxplayers") . " §7】");
+        $this->setNameTag($nameTag);
     }
 }

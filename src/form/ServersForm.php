@@ -25,8 +25,8 @@ class ServersForm extends SimpleForm {
     public function getCallable(): ?callable {
         return function(Player $player, ?int $data) :void {
             if(is_null($data)) return;
-            $address = array_keys($this->servers)[$data];
-            $form = new InfomationForm($address);
+            $serverName = array_values($this->servers)[$data]["name"];
+            $form = new InformationForm($serverName);
             $player->sendForm($form);
         };
     }

@@ -1,11 +1,10 @@
 ---
 servers:
-  mc.locm.network:19133:
-    name: "skyblock"
-    content: ""
-  sur.locm.network:19132:
-    name: "survival"
-    content: ""
+  - name: "SkyBlock"
+    address: "mc.locmvn.com"
+    port: 19133
+    description: "Skyblock tạm bợ"
+    water_dog: true
 button:
   next: ""
   previous: ""
