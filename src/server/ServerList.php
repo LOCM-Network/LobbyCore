@@ -6,6 +6,7 @@ namespace locm\lobby\server;
 
 use Closure;
 use Generator;
+use locm\lobby\event\ServerQueryEvent;
 use locm\lobby\LobbyCore;
 use pocketmine\utils\Utils;
 use SOFe\AwaitGenerator\Await;
@@ -39,7 +40,7 @@ class ServerList {
     }
 
     public static function requestServerList(string $name, Closure $closure) : void {
-        Utils::validateCallableSignature(function(bool $isOnline){}, $closure);
+        Utils::validateCallableSignature(function(Server $server){}, $closure);
         $server = self::get($name);
 
         if($server === null) {
@@ -49,7 +50,10 @@ class ServerList {
 
         Await::f2c(function() use($server, $closure) : Generator {
             yield $server->fetchAsync();
-            $closure($server->isOnline());
+            $closure($server);
         });
+
+        $event = new ServerQueryEvent($server);
+        $event->call();
     }
 }

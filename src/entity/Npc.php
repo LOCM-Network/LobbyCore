@@ -43,6 +43,7 @@ class Npc extends Human {
         $this->setNameTagAlwaysVisible();
         $this->serverName = $nbt->getString("serverName");
         $this->lServer = ServerList::get($this->serverName);
+        $this->setScale(2);
     }
 
     public function saveNBT(): CompoundTag {
@@ -68,9 +69,9 @@ class Npc extends Human {
             if($entity instanceof Player) {
                 if($entity->getPosition()->distance($this->getPosition()) <= 5) {
                     $this->lookAt($entity->getPosition());
-                    if($mainServer->getTick() % 300 == 0) {
+                    if($mainServer->getTick() % 30 == 0) {
                         $message = $this->communicates[array_rand($this->communicates)];
-                        $entity->sendPopup(TextFormat::colorize("&l&f[&e" . Utils::parseBigFont($this->getServerName())  . "&e]\n" . $message));
+                        $entity->sendPopup(TextFormat::colorize("&l&f[&e" . Utils::parseBigFont($this->getServerName())  . "&f]\n" . $message));
                     }
                 }
             }
@@ -88,7 +89,7 @@ class Npc extends Human {
                     if($damager->getInventory()->getItemInHand()->getTypeId() == ItemTypeIds::STICK) {
                         FastForm::question($damager, "Question", "§l§eBạn có muốn xóa NPC này không?",
                             "Có", "Không",
-                            function(Player $player, bool $data) :void{
+                            function(bool $data) :void{
                             if($data) {
                                 $this->flagForDespawn();
                             }
@@ -104,14 +105,15 @@ class Npc extends Human {
     }
 
     public function updateQuery() :void {
-        $clientServer = $this->lServer;
-        if($clientServer === null && $clientServer->isOnline()) {
-            $playerCount = $clientServer->getOnlinePlayers();
-            $maxPlayers = $clientServer->getMaxPlayers();
-            $nameTag = Utils::parseBigFont($this->getServerName()) . "\n§l§7【§e " . $playerCount . " §7/ §e" . $maxPlayers . " §7】";
-        } else {
-            $nameTag = Utils::parseBigFont($this->getServerName()) . "\n§l§7【§c OFFLINE §7】";
-        }
-        $this->setNameTag($nameTag);
+        ServerList::requestServerList($this->getServerName(), function(Server $server) :void{
+            if($server->isOnline()) {
+                $playerCount = $server->getOnlinePlayers();
+                $maxPlayers = $server->getMaxPlayers();
+                $nameTag = "§e" . Utils::parseBigFont($this->getServerName()) . "\n§l§7【§e " . $playerCount . " §7/ §e" . $maxPlayers . " §7】";
+            } else {
+                $nameTag = "§e" . Utils::parseBigFont($this->getServerName()) . "\n§l§7【§c OFFLINE §7】";
+            }
+            $this->setNameTag($nameTag);
+        });
     }
 }

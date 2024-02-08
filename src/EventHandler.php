@@ -5,6 +5,7 @@ declare(strict_types=1);
 namespace locm\lobby;
 
 use locm\lobby\entity\Npc;
+use locm\lobby\event\ServerQueryEvent;
 use locm\lobby\form\ServersForm;
 use locm\lobby\util\Utils;
 use pocketmine\block\BlockTypeIds;
@@ -106,6 +107,11 @@ class EventHandler implements Listener {
         if(!$this->isOp($event->getPlayer())) $event->cancel();
     }
 
+    public function onClientServerQuery(ServerQueryEvent $event) : void {
+        [$total, $_] = Utils::getAllServer();
+        LobbyCore::$cacheMem = $total;
+    }
+
     public function onJoin(PlayerJoinEvent $event) :void {
         $player = $event->getPlayer();
         $event->setJoinMessage("§l§a●§f " . $player->getName());
@@ -133,7 +139,6 @@ class EventHandler implements Listener {
         if($block->getTypeId() == BlockTypeIds::STONE_BUTTON) {
             $button = LobbyCore::getInstance()->getButtonPage();
             $button->handleButton($block->getPosition());
-            Server::getInstance()->broadcastMessage($event->getBlock()->getPosition()->__toString());
         }
     }
 
@@ -141,7 +146,7 @@ class EventHandler implements Listener {
         return Server::getInstance()->isOp($player->getName());
     }
 
-    public function onQuery(QueryRegenerateEvent $event) :void {
+    public function onMainSeverQuery(QueryRegenerateEvent $event) :void {
         $event->getQueryInfo()->setPlayerCount(LobbyCore::$cacheMem);
     }
 

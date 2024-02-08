@@ -94,11 +94,13 @@ class Server {
     public function getNPC(Player $player) :Npc {
         $nbt = CompoundTag::create();
         $nbt->setString("serverName", $this->getName());
-        return new Npc(
+
+        $npc = new Npc(
             $player->getLocation(),
             $player->getSkin(),
             $nbt
         );
+        return $npc;
     }
 
     public static function fromArray(array $data) : self {

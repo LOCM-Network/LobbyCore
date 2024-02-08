@@ -7,6 +7,8 @@ namespace locm\lobby\util;
 use faz\common\Debug;
 use Generator;
 use locm\lobby\LobbyCore;
+use locm\lobby\server\Server;
+use locm\lobby\server\ServerList;
 use mmm545\libgamespyquery\GameSpyQuery;
 use mmm545\libgamespyquery\GameSpyQueryException;
 use pocketmine\item\VanillaItems;
@@ -86,7 +88,6 @@ class Utils {
         return yield from Await::promise(function($resolve) use($address, $port) {
             try {
                 $query = self::query($address, $port);
-                Debug::spaceDump($query);
             }catch (GameSpyQueryException) {
                 $resolve(null);
                 return;
@@ -100,24 +101,25 @@ class Utils {
         });
     }
 
-    public static function getAllMemberInServers() :int {
-        $servers = LobbyCore::getInstance()->getConfig()->get("servers");
-        $result = 0;
-        foreach($servers as $address => $data) {
-            $explode = explode(":", $address);
-            try {
-                $query = self::query($explode[0], (int) $explode[1]);
-            }catch (GameSpyQueryException $exception) {
-                continue;
+    /**
+     * @return array{online: int, max: int}
+     */
+    public static function getAllMemberInServers() : array {
+        $totalMember = 0;
+        $maxPlayer = 0;
+        $servers = ServerList::getAll();
+        $closure = function(Server $server) use ($maxPlayer, $totalMember) {
+            if($server->isOnline()) {
+                $totalMember += $server->getOnlinePlayers();
+                $maxPlayer += $server->getMaxPlayers();
             }
-            $playerCount = 0;
-            $currentPlayers = $query["players"];
-            if(isset($currentPlayers[0]) && $currentPlayers[0] != "") {
-                $playerCount = count($currentPlayers);
-            }
-            $result += $playerCount;
+        };
+
+        foreach($servers as $server) {
+            ServerList::requestServerList($server->getName(), $closure);
         }
-        return $result;
+
+        return [$totalMember, $maxPlayer];
     }
 
 
